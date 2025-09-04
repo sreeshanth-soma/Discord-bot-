@@ -1,0 +1,5 @@
+# Core dependencies for the Discord bot
+discord.py
+python-dotenv
+requests
+google-generativeai
