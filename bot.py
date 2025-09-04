@@ -53,30 +53,22 @@ class MyClient(discord.Client):
             await message.channel.send("Sorry, I couldn't find information about that topic.")
         
     if message.content.startswith('?'):
-        await message.author.send('This is a private message response to your question.')
+        await message.author.send('baane extralu')
         return
     if message.content.startswith('hello'):
         await message.channel.send('Hello World!')
     if message.content.startswith('$hello'):
         await message.channel.send('Hello World!')
-    if message.content.startswith('ep'):
-        await message.channel.send('nuvvu ra ep')
-    if message.content.startswith('pp'):
-        await message.channel.send('nuvvu pp')
-    if message.content.startswith('bkl'):
-        await message.channel.send('em matladuthunav ra maidapindi')
-    if message.content.startswith('lode'):
-        await message.channel.send('tuh lode')
-    if message.content.startswith('lawde'):
-        await message.channel.send('tuh bk-lawde')
-    if message.content.startswith('gandu'):
-        await message.channel.send('tuh gandu dalla')
     if message.content.startswith('$meme'):
       await message.channel.send(get_meme())
     if message.content.startswith('game?'):
        await message.channel.send('whatsapp come')
     if message.content.startswith('mic'):
        await message.channel.send('hey mike, mic on chey ra')
+    if message.content.startswith('#tutorial'):
+       await message.channel.send('prefix -- for wikipedia search\n$meme for a random meme\nprefix ? for a private message')
+    if message.content.startswith('gandu'):
+        await message.channel.send('tuh gandu')
 
 intents = discord.Intents.default()
 intents.message_content = True
