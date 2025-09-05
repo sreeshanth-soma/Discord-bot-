@@ -23,6 +23,103 @@ def get_meme():
   json_data = json.loads(response.text)
   return json_data['url']
 
+async def process_command(message, is_private=False):
+    """Process a command and send response to channel or DM based on is_private flag."""
+    content = message.content.lower()
+    
+    # Search commands
+    if content.startswith('--'):
+        topic = content[2:].strip()
+        
+        # Handle date-related queries with real-time information
+        if any(word in topic.lower() for word in ['date', 'today', 'time', 'day', 'what day', 'current date']):
+            current_date = datetime.now()
+            formatted_date = current_date.strftime("%A, %B %d, %Y")
+            day_of_year = current_date.timetuple().tm_yday
+            days_remaining = 365 - day_of_year if not current_date.year % 4 == 0 else 366 - day_of_year
+            
+            response_text = f"**Today's Date: {formatted_date}**\n\n"
+            response_text += f"📅 **Day of Year:** {day_of_year}\n"
+            response_text += f"📅 **Days Remaining:** {days_remaining}\n"
+            response_text += f"📅 **Weekday:** {current_date.strftime('%A')}\n"
+            response_text += f"📅 **Month:** {current_date.strftime('%B')}\n"
+            response_text += f"📅 **Year:** {current_date.year}"
+            
+            if is_private:
+                await message.author.send(response_text)
+            else:
+                await message.channel.send(response_text)
+            return True
+
+        # Search for information about the topic
+        result = search_topic(topic)
+        if result:
+            response_text = f"**{result['title']}**\n{result['extract']}"
+            if result.get('url'):
+                response_text += f"\n\n🔗 [Learn more]({result['url']})"
+        else:
+            response_text = "Sorry, I couldn't find information about that topic. Try something more specific like '--python' or '--discord'."
+        
+        if is_private:
+            await message.author.send(response_text)
+        else:
+            await message.channel.send(response_text)
+        return True
+    
+    # Fun commands
+    elif content.startswith('hello'):
+        response_text = 'Hello World!'
+        if is_private:
+            response_text += ' (Private)'
+        if is_private:
+            await message.author.send(response_text)
+        else:
+            await message.channel.send(response_text)
+        return True
+        
+    elif content.startswith('$hello'):
+        response_text = 'Hello World!'
+        if is_private:
+            response_text += ' (Private)'
+        if is_private:
+            await message.author.send(response_text)
+        else:
+            await message.channel.send(response_text)
+        return True
+        
+    elif content.startswith('$meme') or content == 'meme':
+        if is_private:
+            await message.author.send(get_meme())
+        else:
+            await message.channel.send(get_meme())
+        return True
+        
+    elif content.startswith('game?'):
+        response_text = 'whatsapp come'
+        if is_private:
+            await message.author.send(response_text)
+        else:
+            await message.channel.send(response_text)
+        return True
+        
+    elif content.startswith('mic'):
+        response_text = 'hey mike, mic on chey ra'
+        if is_private:
+            await message.author.send(response_text)
+        else:
+            await message.channel.send(response_text)
+        return True
+        
+    elif content == 'myid':
+        response_text = f"Your Discord User ID: `{message.author.id}`"
+        if is_private:
+            await message.author.send(response_text)
+        else:
+            await message.channel.send(response_text)
+        return True
+    
+    return False
+
 # Gemini-powered search function
 def search_topic(topic):
     try:
@@ -114,46 +211,118 @@ class MyClient(discord.Client):
     
     content = message.content.lower()  # Convert message content to lowercase for case-insensitive matching
 
+    # Process search commands
     if content.startswith('--'):
-        # Extract the topic from the message content
-        topic = content[2:].strip()
-
-        # Handle date-related queries with real-time information
-        if any(word in topic.lower() for word in ['date', 'today', 'time', 'day', 'what day', 'current date']):
-            current_date = datetime.now()
-            formatted_date = current_date.strftime("%A, %B %d, %Y")
-            day_of_year = current_date.timetuple().tm_yday
-            days_remaining = 365 - day_of_year if not current_date.year % 4 == 0 else 366 - day_of_year
-            
-            response_text = f"**Today's Date: {formatted_date}**\n\n"
-            response_text += f"📅 **Day of Year:** {day_of_year}\n"
-            response_text += f"📅 **Days Remaining:** {days_remaining}\n"
-            response_text += f"📅 **Weekday:** {current_date.strftime('%A')}\n"
-            response_text += f"📅 **Month:** {current_date.strftime('%B')}\n"
-            response_text += f"📅 **Year:** {current_date.year}"
-            
-            await message.channel.send(response_text)
-            return
-
-        # Search for information about the topic
-        result = search_topic(topic)
-        if result:
-            # Send information about the topic to the channel
-            response_text = f"**{result['title']}**\n{result['extract']}"
-            if result.get('url'):
-                response_text += f"\n\n🔗 [Learn more]({result['url']})"
-            await message.channel.send(response_text)
-        else:
-            await message.channel.send("Sorry, I couldn't find information about that topic. Try something more specific like '--python' or '--discord'.")
+        await process_command(message, is_private=False)
         return
         
+    # Process private commands
     if message.content.startswith('?'):
-        await message.author.send('This is a private message response to your question.')
+        # Extract the command after the '?' and process it privately
+        private_command = message.content[1:].strip()  # Remove the '?' and get the command
+        
+        # Handle private search commands
+        if private_command.startswith('--'):
+            topic = private_command[2:].strip()
+            
+            # Handle date-related queries with real-time information
+            if any(word in topic.lower() for word in ['date', 'today', 'time', 'day', 'what day', 'current date']):
+                current_date = datetime.now()
+                formatted_date = current_date.strftime("%A, %B %d, %Y")
+                day_of_year = current_date.timetuple().tm_yday
+                days_remaining = 365 - day_of_year if not current_date.year % 4 == 0 else 366 - day_of_year
+                
+                response_text = f"**Today's Date: {formatted_date}**\n\n"
+                response_text += f"📅 **Day of Year:** {day_of_year}\n"
+                response_text += f"📅 **Days Remaining:** {days_remaining}\n"
+                response_text += f"📅 **Weekday:** {current_date.strftime('%A')}\n"
+                response_text += f"📅 **Month:** {current_date.strftime('%B')}\n"
+                response_text += f"📅 **Year:** {current_date.year}"
+                
+                await message.author.send(response_text)
+                return
+
+            # Search for information about the topic
+            result = search_topic(topic)
+            if result:
+                response_text = f"**{result['title']}**\n{result['extract']}"
+                if result.get('url'):
+                    response_text += f"\n\n🔗 [Learn more]({result['url']})"
+                await message.author.send(response_text)
+            else:
+                await message.author.send("Sorry, I couldn't find information about that topic. Try something more specific like '--python' or '--discord'.")
+            return
+            
+        # Handle other private commands
+        elif private_command == 'meme' or private_command == '$meme':
+            await message.author.send(get_meme())
+            return
+        elif private_command == 'myid':
+            await message.author.send(f"Your Discord User ID: `{message.author.id}`")
+            return
+        elif private_command == 'hello':
+            await message.author.send('Hello World! (Private)')
+            return
+        elif private_command == '$hello':
+            await message.author.send('Hello World! (Private)')
+            return
+        elif private_command == 'game?':
+            await message.author.send('whatsapp come')
+            return
+        elif private_command == 'mic':
+            await message.author.send('hey mike, mic on chey ra')
+            return
+        else:
+            # Default private response for unknown commands
+            await message.author.send('This is a private message response to your question.')
+        return
+    
+    # Help command
+    if message.content.startswith('/help') or message.content.startswith('!help'):
+        help_text = """
+🤖 **Bot Commands Help**
+
+**🔍 Search Commands:**
+`--topic` - Search for information about any topic (e.g., `--python`, `--discord`)
+
+**📅 Date & Time:**
+`--what is todays date` - Get current date and time information
+
+**👤 User Commands:**
+`!myid` - Get your Discord User ID
+`!getid @user` - Get another user's ID (admin only)
+
+**💬 Direct Messages:**
+`!dm @user message` - Send DM to a server member (admin only)
+`!dmid 123456789 message` - Send DM to any user by ID (admin only)
+
+**🎉 Fun Commands:**
+`hello` - Say hello
+`$hello` - Alternative hello
+`$meme` - Get a random meme
+`game?` - Gaming invitation
+`mic` - Microphone check
+
+**🎭 Entertainment:**
+`ep`, `pp`, `bkl`, `lode`, `lawde`, `gandu` - Fun responses
+
+**❓ Private Commands (DM to you):**
+`?--topic` - Private search (e.g., `?--python`)
+`?meme` - Get a private meme
+`?myid` - Get your ID privately
+`?hello` - Private hello message
+`?game?` - Private gaming invitation
+`?mic` - Private mic check
+`?` - Default private message
+
+*Use any command to get started!* 🚀
+        """
+        await message.channel.send(help_text)
         return
     
     # Command to get your user ID
     if message.content.startswith('!myid'):
-        await message.channel.send(f"Your Discord User ID: `{message.author.id}`")
+        await process_command(message, is_private=False)
         return
     
     # Command to get someone's user ID: !getid @user
@@ -259,28 +428,34 @@ class MyClient(discord.Client):
         else:
             await message.channel.send("❌ You don't have permission to use this command")
         return
-    if message.content.startswith('hello'):
-        await message.channel.send('Hello World!')
-    if message.content.startswith('$hello'):
-        await message.channel.send('Hello World!')
-    if message.content.startswith('ep'):
-        await message.channel.send('nuvvu ra ep')
-    if message.content.startswith('pp'):
-        await message.channel.send('nuvvu pp')
-    if message.content.startswith('bkl'):
-        await message.channel.send('em matladuthunav ra maidapindi')
-    if message.content.startswith('lode'):
-        await message.channel.send('tuh lode')
-    if message.content.startswith('lawde'):
-        await message.channel.send('tuh bk-lawde')
-    if message.content.startswith('gandu'):
-        await message.channel.send('tuh gandu dalla')
-    if message.content.startswith('$meme'):
-      await message.channel.send(get_meme())
-    if message.content.startswith('game?'):
-       await message.channel.send('whatsapp come')
-    if message.content.startswith('mic'):
-       await message.channel.send('hey mike, mic on chey ra')
+    # Process fun commands
+    if (message.content.startswith('hello') or 
+        message.content.startswith('$hello') or 
+        message.content.startswith('$meme') or 
+        message.content.startswith('game?') or 
+        message.content.startswith('mic')):
+        await process_command(message, is_private=False)
+        return
+    
+    # Process entertainment commands
+    if (message.content.startswith('ep') or 
+        message.content.startswith('pp') or 
+        message.content.startswith('bkl') or 
+        message.content.startswith('lode') or 
+        message.content.startswith('lawde') or 
+        message.content.startswith('gandu')):
+        entertainment_responses = {
+            'ep': 'nuvvu ra ep',
+            'pp': 'nuvvu pp',
+            'bkl': 'em matladuthunav ra maidapindi',
+            'lode': 'tuh lode',
+            'lawde': 'tuh bk-lawde',
+            'gandu': 'tuh gandu dalla'
+        }
+        for cmd, response in entertainment_responses.items():
+            if message.content.startswith(cmd):
+                await message.channel.send(response)
+                return
 
 intents = discord.Intents.default()
 intents.message_content = True
