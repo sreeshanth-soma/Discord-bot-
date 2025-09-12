@@ -3,3 +3,13 @@ discord.py
 python-dotenv
 requests
 google-generativeai
+
+# Music player dependencies
+spotipy
+yt-dlp
+PyNaCl
+
+# Additional dependencies for server management features
+# sqlite3 is included in Python standard library
+# asyncio is included in Python standard library  
+# re is included in Python standard library
