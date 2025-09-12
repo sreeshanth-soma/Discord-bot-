@@ -768,6 +768,30 @@ def has_mod_permissions(member):
             member.guild_permissions.manage_messages or
             member.id == 1187080447709171743)  # Your ID as fallback admin
 
+async def get_user_from_mention(guild, user_mention):
+    """Get user from mention with improved parsing"""
+    if not user_mention.startswith('<@') or not user_mention.endswith('>'):
+        return None
+    
+    try:
+        # Handle both <@123456789> and <@!123456789> formats
+        user_id = int(user_mention[2:-1].replace('!', ''))
+        
+        # First try to get from guild cache
+        user = guild.get_member(user_id)
+        if user:
+            return user
+        
+        # If not found in cache, try to fetch from Discord API
+        try:
+            user = await guild.fetch_member(user_id)
+            return user
+        except:
+            return None
+            
+    except ValueError:
+        return None
+
 # Logging function
 def log_server_event(guild_id, event_type, user_id=None, channel_id=None, description=None):
     try:
@@ -1614,6 +1638,12 @@ class MyClient(discord.Client):
             if error:
                 await message.channel.send(f"❌ {error}")
             else:
+                # Delete the command message for cleaner look
+                try:
+                    await message.delete()
+                except:
+                    pass
+                
                 log_server_event(message.guild.id, "poll_created", message.author.id, message.channel.id, f"Poll: {question}")
                 
         except Exception as e:
@@ -1635,42 +1665,43 @@ class MyClient(discord.Client):
             user_mention = parts[1]
             reason = parts[2] if len(parts) > 2 else "No reason provided"
             
-            if user_mention.startswith('<@') and user_mention.endswith('>'):
-                user_id = int(user_mention[2:-1].replace('!', ''))
-                user = message.guild.get_member(user_id)
+            user = await get_user_from_mention(message.guild, user_mention)
+            if user:
+                # Store warning in database
+                conn = sqlite3.connect('bot_data.db')
+                cursor = conn.cursor()
+                cursor.execute('''INSERT INTO warnings (user_id, guild_id, moderator_id, reason)
+                                 VALUES (?, ?, ?, ?)''', (user.id, message.guild.id, message.author.id, reason))
+                conn.commit()
                 
-                if user:
-                    # Store warning in database
-                    conn = sqlite3.connect('bot_data.db')
-                    cursor = conn.cursor()
-                    cursor.execute('''INSERT INTO warnings (user_id, guild_id, moderator_id, reason)
-                                     VALUES (?, ?, ?, ?)''', (user_id, message.guild.id, message.author.id, reason))
-                    conn.commit()
-                    
-                    # Get warning count
-                    cursor.execute('SELECT COUNT(*) FROM warnings WHERE user_id = ? AND guild_id = ?', (user_id, message.guild.id))
-                    warning_count = cursor.fetchone()[0]
-                    conn.close()
-                    
-                    embed = discord.Embed(title="⚠️ User Warned", color=0xff9900)
-                    embed.add_field(name="User", value=user.mention, inline=True)
-                    embed.add_field(name="Moderator", value=message.author.mention, inline=True)
-                    embed.add_field(name="Reason", value=reason, inline=False)
-                    embed.add_field(name="Total Warnings", value=str(warning_count), inline=True)
-                    
-                    await message.channel.send(embed=embed)
-                    
-                    # DM the user
-                    try:
-                        await user.send(f"⚠️ You have been warned in **{message.guild.name}**\nReason: {reason}\nTotal warnings: {warning_count}")
-                    except:
-                        pass
-                    
-                    log_server_event(message.guild.id, "user_warned", user_id, message.channel.id, f"Reason: {reason}")
-                else:
-                    await message.channel.send("❌ User not found in this server.")
+                # Get warning count
+                cursor.execute('SELECT COUNT(*) FROM warnings WHERE user_id = ? AND guild_id = ?', (user.id, message.guild.id))
+                warning_count = cursor.fetchone()[0]
+                conn.close()
+                
+                embed = discord.Embed(title="⚠️ User Warned", color=0xff9900)
+                embed.add_field(name="User", value=user.mention, inline=True)
+                embed.add_field(name="Moderator", value=message.author.mention, inline=True)
+                embed.add_field(name="Reason", value=reason, inline=False)
+                embed.add_field(name="Total Warnings", value=str(warning_count), inline=True)
+                
+                await message.channel.send(embed=embed)
+                
+                # Delete the command message for cleaner look
+                try:
+                    await message.delete()
+                except:
+                    pass
+                
+                # DM the user
+                try:
+                    await user.send(f"⚠️ You have been warned in **{message.guild.name}**\nReason: {reason}\nTotal warnings: {warning_count}")
+                except:
+                    pass
+                
+                log_server_event(message.guild.id, "user_warned", user.id, message.channel.id, f"Reason: {reason}")
             else:
-                await message.channel.send("❌ Please mention a valid user.")
+                await message.channel.send("❌ User not found in this server.")
         except Exception as e:
             await message.channel.send(f"❌ Error warning user: {str(e)}")
         return
@@ -1706,6 +1737,13 @@ class MyClient(discord.Client):
                     embed.add_field(name="Reason", value=reason, inline=False)
                     
                     await message.channel.send(embed=embed)
+                    
+                    # Delete the command message for cleaner look
+                    try:
+                        await message.delete()
+                    except:
+                        pass
+                    
                     log_server_event(message.guild.id, "user_kicked", user_id, message.channel.id, f"Reason: {reason}")
                 else:
                     await message.channel.send("❌ User not found in this server.")
@@ -1746,6 +1784,13 @@ class MyClient(discord.Client):
                     embed.add_field(name="Reason", value=reason, inline=False)
                     
                     await message.channel.send(embed=embed)
+                    
+                    # Delete the command message for cleaner look
+                    try:
+                        await message.delete()
+                    except:
+                        pass
+                    
                     log_server_event(message.guild.id, "user_banned", user_id, message.channel.id, f"Reason: {reason}")
                 else:
                     await message.channel.send("❌ User not found in this server.")
@@ -1782,6 +1827,13 @@ class MyClient(discord.Client):
                     
                     await user.add_roles(role)
                     await message.channel.send(f"✅ Added role **{role.name}** to {user.display_name}")
+                    
+                    # Delete the command message for cleaner look
+                    try:
+                        await message.delete()
+                    except:
+                        pass
+                    
                     log_server_event(message.guild.id, "role_added", user_id, message.channel.id, f"Role: {role.name}")
                 else:
                     await message.channel.send("❌ User or role not found.")
@@ -1817,6 +1869,13 @@ class MyClient(discord.Client):
                     
                     await user.remove_roles(role)
                     await message.channel.send(f"✅ Removed role **{role.name}** from {user.display_name}")
+                    
+                    # Delete the command message for cleaner look
+                    try:
+                        await message.delete()
+                    except:
+                        pass
+                    
                     log_server_event(message.guild.id, "role_removed", user_id, message.channel.id, f"Role: {role.name}")
                 else:
                     await message.channel.send("❌ User or role not found.")
@@ -1962,6 +2021,13 @@ class MyClient(discord.Client):
             embed.set_footer(text=f"Announced by {message.author.display_name}")
             
             await message.channel.send(embed=embed)
+            
+            # Delete the command message for cleaner look
+            try:
+                await message.delete()
+            except:
+                pass
+            
             log_server_event(message.guild.id, "announcement_made", message.author.id, message.channel.id, 
                            f"Announcement: {announcement[:100]}...")
         except Exception as e:

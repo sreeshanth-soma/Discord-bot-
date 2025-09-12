@@ -1,8 +1,46 @@
+# Environment variables
 .env
-__pycache__/
-*.pyc
-.env.*
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.production
+
+# Spotify API cache (contains sensitive tokens)
+.cache
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# Database
+*.db
+*.sqlite3
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
