@@ -1,0 +1,223 @@
+import discord
+from discord.ext import commands, tasks
+import asyncio
+import time
+from collections import defaultdict, deque
+
+# Import configuration
+from config.settings import TOKEN
+
+# Import utilities
+from utils.database import init_database, log_server_event
+from utils.permissions import has_mod_permissions
+
+# Import command handlers
+from commands.fun import process_fun_command, handle_entertainment_commands
+from commands.search import handle_search_command, handle_private_search_command
+from commands.utility import process_utility_commands
+
+# Auto-moderation settings
+spam_tracker = defaultdict(lambda: deque(maxlen=5))
+from config.settings import BAD_WORDS as bad_words
+
+# Auto-moderation functions
+def is_spam(user_id, message_content):
+    now = time.time()
+    user_messages = spam_tracker[user_id]
+    
+    # Add current message
+    user_messages.append((now, message_content))
+    
+    # Check for spam patterns
+    if len(user_messages) >= 4:
+        # Check if 4+ messages in 10 seconds
+        recent_messages = [msg for msg in user_messages if now - msg[0] <= 10]
+        if len(recent_messages) >= 4:
+            return True
+        
+        # Check for repeated content
+        contents = [msg[1] for msg in user_messages]
+        if len(set(contents)) == 1 and len(contents) >= 3:  # Same message 3+ times
+            return True
+    
+    return False
+
+def contains_bad_words(message_content):
+    content_lower = message_content.lower()
+    return any(word in content_lower for word in bad_words)
+
+class MyClient(discord.Client):
+    async def on_ready(self):
+        print(f'Logged on as {self.user}!')
+
+    async def on_member_join(self, member):
+        channel = member.guild.system_channel
+        if channel is not None:
+            await channel.send(f'{member.display_name} has joined the server!')
+        
+        # Log the join event
+        log_server_event(member.guild.id, "member_joined", member.id, 
+                        channel.id if channel else None, 
+                        f"{member.display_name} ({member.id}) joined the server")
+
+    async def on_member_remove(self, member):
+        # Log the leave event
+        log_server_event(member.guild.id, "member_left", member.id, None, 
+                        f"{member.display_name} ({member.id}) left the server")
+
+    async def on_message_edit(self, before, after):
+        if before.author.bot:
+            return
+        
+        # Log message edits
+        if before.content != after.content:
+            log_server_event(after.guild.id, "message_edited", after.author.id, after.channel.id,
+                            f"Message edited in #{after.channel.name}")
+
+    async def on_message_delete(self, message):
+        if message.author.bot:
+            return
+        
+        # Log message deletions
+        log_server_event(message.guild.id, "message_deleted", message.author.id, message.channel.id,
+                        f"Message deleted in #{message.channel.name}: {message.content[:100]}...")
+
+    async def on_message(self, message):
+        if message.author == self.user:
+            return
+        
+        # Auto-moderation checks
+        if not message.author.bot and message.guild:
+            # Check for spam
+            if is_spam(message.author.id, message.content):
+                try:
+                    await message.delete()
+                    embed = discord.Embed(
+                        title="🚫 Auto-Moderation: Spam Detected", 
+                        description=f"{message.author.mention} was detected sending spam messages.",
+                        color=0xff0000
+                    )
+                    embed.add_field(name="Action", value="Message deleted", inline=False)
+                    warning_msg = await message.channel.send(embed=embed)
+                    
+                    # Auto-delete the warning after 5 seconds
+                    await asyncio.sleep(5)
+                    await warning_msg.delete()
+                    
+                    log_server_event(message.guild.id, "spam_detected", message.author.id, message.channel.id, 
+                                   "Spam message auto-deleted")
+                    return
+                except discord.errors.NotFound:
+                    pass
+                except discord.errors.Forbidden:
+                    pass
+            
+            # Check for bad words
+            if contains_bad_words(message.content):
+                try:
+                    await message.delete()
+                    embed = discord.Embed(
+                        title="🚫 Auto-Moderation: Inappropriate Content", 
+                        description=f"{message.author.mention}, your message contained inappropriate content.",
+                        color=0xff0000
+                    )
+                    embed.add_field(name="Action", value="Message deleted", inline=False)
+                    warning_msg = await message.channel.send(embed=embed)
+                    
+                    # Auto-delete the warning after 5 seconds
+                    await asyncio.sleep(5)
+                    await warning_msg.delete()
+                    
+                    log_server_event(message.guild.id, "inappropriate_content", message.author.id, message.channel.id, 
+                                   "Inappropriate content auto-deleted")
+                    return
+                except discord.errors.NotFound:
+                    pass
+                except discord.errors.Forbidden:
+                    pass
+        
+        # Process search commands
+        if await handle_search_command(message, is_private=False):
+            return
+        
+        # Process private commands
+        if message.content.startswith('?'):
+            # Handle private search commands
+            if await handle_private_search_command(message):
+                return
+            
+            # Handle other private commands
+            private_command = message.content[1:].strip()
+            if await process_fun_command_private(message, private_command):
+                return
+            else:
+                # Default private response for unknown commands
+                await message.author.send('This is a private message response to your question.')
+            return
+        
+        # Process fun commands
+        if await process_fun_command(message, is_private=False):
+            return
+        
+        # Process entertainment commands
+        if await handle_entertainment_commands(message):
+            return
+        
+        # Process utility commands
+        if await process_utility_commands(message, self):
+            return
+        
+        # Help command
+        if message.content.startswith('/help') or message.content.startswith('!help'):
+            await send_help_message(message)
+            return
+
+async def process_fun_command_private(message, private_command):
+    """Process private fun commands"""
+    if private_command == 'meme' or private_command == '$meme':
+        from utils.helpers import get_meme
+        await message.author.send(get_meme())
+        return True
+    elif private_command == 'myid':
+        await message.author.send(f"Your Discord User ID: `{message.author.id}`")
+        return True
+    elif private_command == 'hello' or private_command == '$hello':
+        await message.author.send('Hello World! (Private)')
+        return True
+    elif private_command == 'game?':
+        await message.author.send('whatsapp come')
+        return True
+    elif private_command == 'mic':
+        await message.author.send('hey mike, mic on chey ra')
+        return True
+    
+    return False
+
+async def send_help_message(message):
+    """Send help message"""
+    embed1 = discord.Embed(title="🤖 Bot Commands Help - Part 1", color=0x3498db)
+    embed1.add_field(name="🔍 Search", value="`--topic` - Search for information", inline=False)
+    embed1.add_field(name="📅 Date & Time", value="`--what is todays date` - Get current date", inline=False)
+    embed1.add_field(name="🎉 Fun Commands", value="`hello`, `$hello`, `$meme`, `game?`, `mic`", inline=False)
+    embed1.add_field(name="🛠️ Utility Commands", value="`!myid` - Get your Discord ID\n`!getid @user` - Get user ID (admin)\n`!stats` - Server statistics", inline=False)
+    
+    embed2 = discord.Embed(title="🤖 Bot Commands Help - Part 2", color=0x9b59b6)
+    embed2.add_field(name="💬 DM Commands (Admin)", value="`!dm @user message` - Send DM\n`!dmid 123456789 message` - DM by ID", inline=False)
+    embed2.add_field(name="❓ Private Commands", value="Start with `?` for private responses\n`?--topic`, `?meme`, `?myid`, etc.", inline=False)
+    embed2.set_footer(text="Use any command to get started! 🚀")
+    
+    await message.channel.send(embed=embed1)
+    await message.channel.send(embed=embed2)
+
+# Initialize database
+init_database()
+
+# Setup Discord intents
+intents = discord.Intents.default()
+intents.message_content = True
+
+# Create and run client
+client = MyClient(intents=intents)
+
+if __name__ == "__main__":
+    client.run(token=TOKEN)
