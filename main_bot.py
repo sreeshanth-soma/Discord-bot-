@@ -15,6 +15,7 @@ from utils.permissions import has_mod_permissions
 from commands.fun import process_fun_command, handle_entertainment_commands
 from commands.search import handle_search_command, handle_private_search_command
 from commands.utility import process_utility_commands
+from commands.music import process_music_commands, initialize_music_player
 
 # Auto-moderation settings
 spam_tracker = defaultdict(lambda: deque(maxlen=5))
@@ -49,6 +50,8 @@ def contains_bad_words(message_content):
 class MyClient(discord.Client):
     async def on_ready(self):
         print(f'Logged on as {self.user}!')
+        # Initialize music player
+        initialize_music_player(self)
 
     async def on_member_join(self, member):
         channel = member.guild.system_channel
@@ -167,6 +170,10 @@ class MyClient(discord.Client):
         if await process_utility_commands(message, self):
             return
         
+        # Process music commands
+        if await process_music_commands(message):
+            return
+        
         # Help command
         if message.content.startswith('/help') or message.content.startswith('!help'):
             await send_help_message(message)
@@ -199,6 +206,7 @@ async def send_help_message(message):
     embed1.add_field(name="🔍 Search", value="`--topic` - Search for information", inline=False)
     embed1.add_field(name="📅 Date & Time", value="`--what is todays date` - Get current date", inline=False)
     embed1.add_field(name="🎉 Fun Commands", value="`hello`, `$hello`, `$meme`, `game?`, `mic`", inline=False)
+    embed1.add_field(name="🎵 Music Player", value="`!music` - Interactive music player\n`!play <song>` - Play music\n`!search <song>` - Quick search", inline=False)
     embed1.add_field(name="🛠️ Utility Commands", value="`!myid` - Get your Discord ID\n`!getid @user` - Get user ID (admin)\n`!stats` - Server statistics", inline=False)
     
     embed2 = discord.Embed(title="🤖 Bot Commands Help - Part 2", color=0x9b59b6)
