@@ -30,16 +30,6 @@
 
 Our music system provides a **premium Discord music experience** with:
 
-#### **🎛️ Interactive Controls**
-- **Play/Pause** ⏯️ - Instant playback control
-- **Skip** ⏭️ - Jump to next track
-- **Stop** ⏹️ - Stop and clear queue
-- **Loop** 🔁 - Toggle repeat mode
-- **Volume** 🔊 - Precise volume control (0-100%)
-- **Queue** 📋 - Advanced queue management
-- **Search** 🎵 - Quick song addition
-- **Disconnect** 👋 - Clean voice channel exit
-
 #### **🎶 Hybrid Music Integration: Spotify + YouTube**
 
 Our music system combines the **best of both platforms** for an optimal experience:
@@ -86,7 +76,7 @@ Our music system combines the **best of both platforms** for an optimal experien
 |---------|-------------|---------|
 | `!music` | 🎵 Launch interactive music player | `!music` |
 | `!play <song>` | ▶️ Play song by name or URL | `!play Never Gonna Give You Up` |
-| `!search <song>` | 🔍 Quick search and play | `!search Bohemian Rhapsody` |
+| `!search <song>` | 🔍 Quick search and play | `!search Tere Bina` |
 | `!pause` | ⏸️ Pause current song | `!pause` |
 | `!resume` | ▶️ Resume paused song | `!resume` |
 | `!skip` | ⏭️ Skip to next song | `!skip` |
@@ -110,7 +100,7 @@ Our music system uses a sophisticated **hybrid approach** that leverages both pl
 1. **User Input Processing**
    ```python
    # User searches for a song
-   query = "Bohemian Rhapsody Queen"
+   query = "Tere Bina"
    ```
 
 2. **Spotify Metadata Retrieval**
@@ -146,16 +136,6 @@ Our music system uses a sophisticated **hybrid approach** that leverages both pl
    voice_client.play(player)
    embed = create_rich_embed(metadata)  # Beautiful Spotify-style card
    ```
-
-#### **🎯 Why This Approach Works:**
-
-| Aspect | Spotify Alone | YouTube Alone | **Our Hybrid Approach** |
-|--------|---------------|---------------|-------------------------|
-| **Metadata Quality** | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Audio Availability** | ❌ (No streaming) | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Search Accuracy** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Visual Appeal** | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Reliability** | ❌ (API limits) | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 
 #### **🛠️ Technical Stack:**
 
@@ -228,62 +208,6 @@ source venv/bin/activate
 
 # Start the bot
 python3 main_bot.py
-```
-
----
-
-## 📚 **All Commands Reference**
-
-### **🎵 Music Commands**
-```
-!music          - Interactive music player interface
-!play <song>    - Play music by name or YouTube URL
-!search <song>  - Quick search and add to queue
-!pause          - Pause current playback
-!resume         - Resume paused music
-!skip           - Skip to next song in queue
-!stop           - Stop music and clear queue
-!queue          - Display current queue
-!volume <0-100> - Set playback volume
-!loop           - Toggle loop mode on/off
-!leave          - Disconnect from voice channel
-!nowplaying     - Show currently playing song
-```
-
-### **🎉 Fun & Entertainment**
-```
-hello           - Friendly greeting
-$hello          - Private greeting response
-$meme           - Get a random meme
-game?           - Play a quick game
-mic             - Microphone test
-```
-
-### **🔍 Search & Information**
-```
---<topic>       - Search for information on any topic
---what is todays date - Get current date and time
-?<command>      - Execute any command privately
-```
-
-### **🛠️ Utility Commands**
-```
-!myid           - Get your Discord user ID
-!getid @user    - Get another user's ID (admin only)
-!stats          - Display detailed server statistics
-!dm @user <msg> - Send direct message (admin only)
-!dmid <id> <msg> - Send DM by user ID (admin only)
-```
-
-### **🔧 Admin & Moderation**
-```
-!warn @user <reason>    - Issue warning to user
-!kick @user <reason>    - Kick user from server
-!ban @user <reason>     - Ban user from server
-!poll <question>        - Create interactive poll
-!announce <message>     - Server announcement
-!logs                   - View server activity logs
-!warnings @user         - Check user's warnings
 ```
 
 ---
@@ -367,12 +291,6 @@ python -m pytest tests/
 
 ---
 
-## 📝 **License**
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
 ## 🆘 **Support & Troubleshooting**
 
 ### **Common Issues**
@@ -408,20 +326,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 </details>
 
 ### **Need Help?**
-- 📧 **Email**: [your-email@example.com]
-- 💬 **Discord**: [Your Discord Server Invite]
-- 🐛 **Issues**: [GitHub Issues Page]
-- 📚 **Wiki**: [GitHub Wiki Page]
-
----
-
-## 🎉 **Acknowledgments**
-
-- **Discord.py** - The amazing Discord API wrapper
-- **yt-dlp** - YouTube audio extraction
-- **Spotipy** - Spotify Web API wrapper
-- **Google Generative AI** - AI-powered search capabilities
-- **Contributors** - Everyone who helped make this bot awesome!
+- 📧 **Email**: [sreeshanthsoma@gmail.com]
+- 💬 **Discord - username**: [sreeshu_soma]
+- 🐛 **Issues**: [Issues](https://github.com/sreeshanth-soma/Discord-bot-/issues)
 
 ---
 
