@@ -174,9 +174,12 @@ class MyClient(discord.Client):
         if await process_music_commands(message):
             return
         
-        # Help command
+        # Help commands
         if message.content.startswith('/help') or message.content.startswith('!help'):
             await send_help_message(message)
+            return
+        elif message.content.startswith('/ahelp') or message.content.startswith('!ahelp'):
+            await send_admin_help_message(message)
             return
 
 async def process_fun_command_private(message, private_command):
@@ -201,18 +204,44 @@ async def process_fun_command_private(message, private_command):
     return False
 
 async def send_help_message(message):
-    """Send help message"""
-    embed1 = discord.Embed(title="🤖 Bot Commands Help - Part 1", color=0x3498db)
+    """Send help message for all users"""
+    # General Commands
+    embed1 = discord.Embed(title="🤖 Bot Commands Help", color=0x3498db)
     embed1.add_field(name="🔍 Search", value="`--topic` - Search for information", inline=False)
     embed1.add_field(name="📅 Date & Time", value="`--what is todays date` - Get current date", inline=False)
     embed1.add_field(name="🎉 Fun Commands", value="`hello`, `$hello`, `$meme`, `game?`, `mic`", inline=False)
-    embed1.add_field(name="🎵 Music Player", value="`!music` - Interactive music player\n`!play <song>` - Play music\n`!search <song>` - Quick search", inline=False)
-    embed1.add_field(name="🛠️ Utility Commands", value="`!myid` - Get your Discord ID\n`!getid @user` - Get user ID (admin)\n`!stats` - Server statistics", inline=False)
+    embed1.add_field(name="🛠️ Utility Commands", value="`!myid` - Get your Discord ID\n`!stats` - Server statistics", inline=False)
+    embed1.add_field(name="❓ Private Commands", value="Start with `?` for private responses\n`?--topic`, `?meme`, `?myid`, etc.", inline=False)
+    embed1.add_field(name="🤖 Auto-Moderation", value="**Spam Detection** - Auto-deletes spam messages\n**Content Filter** - Removes inappropriate content", inline=False)
+    embed1.set_footer(text="Use any command to get started! 🚀")
     
-    embed2 = discord.Embed(title="🤖 Bot Commands Help - Part 2", color=0x9b59b6)
-    embed2.add_field(name="💬 DM Commands (Admin)", value="`!dm @user message` - Send DM\n`!dmid 123456789 message` - DM by ID", inline=False)
-    embed2.add_field(name="❓ Private Commands", value="Start with `?` for private responses\n`?--topic`, `?meme`, `?myid`, etc.", inline=False)
-    embed2.set_footer(text="Use any command to get started! 🚀")
+    # Music Commands (Separate Message)
+    embed2 = discord.Embed(title="🎵 Music Commands", color=0x1DB954)
+    embed2.add_field(name="⚠️ Important Note", value="**You must be in a voice channel to use music commands!**", inline=False)
+    embed2.add_field(name="🎵 Music Player", value="`!music` - Interactive music player\n`!play <song>` - Play music\n`!search <song>` - Quick search", inline=True)
+    embed2.add_field(name="🎵 Music Controls", value="`!pause` - Pause music\n`!resume` - Resume music\n`!skip` - Skip song\n`!stop` - Stop music\n`!queue` - Show queue\n`!volume <0-100>` - Set volume\n`!loop` - Toggle loop\n`!leave` - Leave voice channel\n`!nowplaying` - Current song", inline=True)
+    embed2.set_footer(text="Join a voice channel to start using music commands! 🎧")
+    
+    await message.channel.send(embed=embed1)
+    await message.channel.send(embed=embed2)
+
+async def send_admin_help_message(message):
+    """Send admin help message"""
+    # Check if user has admin permissions
+    if not has_mod_permissions(message.author):
+        await message.channel.send("❌ You don't have permission to use admin commands!")
+        return
+    
+    embed1 = discord.Embed(title="🔒 Admin Commands Help - Part 1", color=0xe74c3c)
+    embed1.add_field(name="👥 User Management", value="`!getid @user` - Get user ID\n`!warn @user <reason>` - Issue warning\n`!kick @user <reason>` - Kick user\n`!ban @user <reason>` - Ban user\n`!warnings @user` - Check warnings", inline=False)
+    embed1.add_field(name="💬 DM Commands", value="`!dm @user message` - Send DM\n`!dmid 123456789 message` - DM by ID", inline=False)
+    embed1.add_field(name="📊 Server Management", value="`!poll <question>` - Create poll\n`!announce <message>` - Server announcement\n`!logs` - View server logs", inline=False)
+    
+    embed2 = discord.Embed(title="🔒 Admin Commands Help - Part 2", color=0x8e44ad)
+    embed2.add_field(name="🔧 Bot Management", value="`!ahelp` - Show this admin help\n`!stats` - Detailed server statistics", inline=False)
+    embed2.add_field(name="📈 Monitoring", value="**Activity Logging** - Tracks all server events\n**Auto-Moderation** - Spam and content filtering\n**Member Tracking** - Join/leave events", inline=False)
+    embed2.add_field(name="⚠️ Important Notes", value="• Admin commands require proper permissions\n• All actions are logged for security\n• Use moderation commands responsibly", inline=False)
+    embed2.set_footer(text="Admin commands - Use responsibly! 🛡️")
     
     await message.channel.send(embed=embed1)
     await message.channel.send(embed=embed2)
