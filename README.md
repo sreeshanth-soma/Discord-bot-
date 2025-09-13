@@ -178,34 +178,6 @@ mic             - Microphone test
 
 ---
 
-## 🏗️ **Project Structure**
-
-```
-Discord-bot-/
-├── 📁 commands/           # Command modules
-│   ├── music.py          # 🎵 Music system commands
-│   ├── fun.py            # 🎉 Entertainment commands
-│   ├── utility.py        # 🛠️ Utility commands
-│   └── search.py         # 🔍 Search commands
-├── 📁 config/            # Configuration
-│   └── settings.py       # ⚙️ Bot settings & API keys
-├── 📁 utils/             # Utility modules
-│   ├── database.py       # 🗄️ Database operations
-│   ├── helpers.py        # 🔧 Helper functions
-│   ├── permissions.py    # 🔒 Permission management
-│   └── music_sources.py  # 🎵 Music source handlers
-├── 📁 ui/                # User interface components
-│   └── music_views.py    # 🎛️ Music player UI components
-├── 📁 venv/              # Virtual environment
-├── main_bot.py           # 🤖 Main bot entry point
-├── requirements.txt      # 📦 Dependencies
-├── .env                  # 🔐 Environment variables
-├── .gitignore           # 📝 Git ignore rules
-└── README.md            # 📖 This file
-```
-
----
-
 ## 🎯 **Key Features Deep Dive**
 
 ### **🎵 Advanced Music System**
