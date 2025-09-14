@@ -214,6 +214,58 @@ class FastMusicSearchModal(Modal, title='🎵 Add Music'):
                 await interaction.followup.send("❌ Failed to connect to your voice channel!", ephemeral=True)
             return
 
+        # Check if it's a direct YouTube URL
+        if query.startswith(('http://', 'https://')) and ('youtube.com' in query or 'youtu.be' in query):
+            # Handle direct YouTube URL
+            try:
+                import yt_dlp
+                ytdl = yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True})
+                data = await asyncio.get_event_loop().run_in_executor(None, lambda: ytdl.extract_info(query, download=False))
+                if 'entries' in data:
+                    data = data['entries'][0]
+                
+                title = data.get('title', 'Unknown Title')
+                duration = data.get('duration', 0)
+                thumbnail = data.get('thumbnail', '')
+                uploader = data.get('uploader', 'Unknown')
+                
+                # Format duration
+                duration_str = f"{duration//60}:{duration%60:02d}" if duration else "Live"
+                
+                song_info = {
+                    'url': query,
+                    'title': title,
+                    'duration': duration_str,
+                    'thumbnail': thumbnail,
+                    'requester': interaction.user.display_name,
+                    'uploader': uploader
+                }
+                
+                # Play the YouTube URL directly
+                if not voice_client.is_playing():
+                    # Start playing immediately
+                    self.music_player.current_songs[interaction.guild.id] = song_info
+                    try:
+                        player = await YTDLSource.from_url(query, stream=True)
+                        player.volume = self.music_player.volumes[interaction.guild.id]
+                        voice_client.play(player, after=lambda e: asyncio.run_coroutine_threadsafe(self.music_player.play_next(interaction.guild.id), self.music_player.bot.loop))
+                        
+                        await self.music_card.update_card()
+                        await interaction.followup.send(f"▶️ **Now playing:** {title} by {uploader}", ephemeral=True)
+                    except Exception as e:
+                        await interaction.followup.send(f"❌ Error playing song: {str(e)}", ephemeral=True)
+                else:
+                    # Add to queue
+                    self.music_player.queues[interaction.guild.id].append(song_info)
+                    position = len(self.music_player.queues[interaction.guild.id])
+                    
+                    await interaction.followup.send(f"📋 **Added to queue #{position}:** {title} by {uploader}", ephemeral=True)
+                    await self.music_card.update_card()
+                    
+            except Exception as e:
+                await interaction.followup.send(f"❌ Error loading YouTube URL: {str(e)}", ephemeral=True)
+            return
+
         # Fast Spotify search - always use first result
         url, title, duration, thumbnail, artist, popularity = await SpotifyMusicSource.search_spotify(query)
         if not url:

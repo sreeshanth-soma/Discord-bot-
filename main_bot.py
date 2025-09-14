@@ -16,6 +16,7 @@ from commands.fun import process_fun_command, handle_entertainment_commands
 from commands.search import handle_search_command, handle_private_search_command
 from commands.utility import process_utility_commands
 from commands.music import process_music_commands, initialize_music_player
+from commands.moderation import process_moderation_commands
 
 # Auto-moderation settings
 spam_tracker = defaultdict(lambda: deque(maxlen=5))
@@ -168,6 +169,10 @@ class MyClient(discord.Client):
         
         # Process utility commands
         if await process_utility_commands(message, self):
+            return
+        
+        # Process moderation commands
+        if await process_moderation_commands(message):
             return
         
         # Process music commands
