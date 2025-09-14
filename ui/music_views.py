@@ -253,7 +253,11 @@ class FastMusicSearchModal(Modal, title='🎵 Add Music'):
                         await self.music_card.update_card()
                         await interaction.followup.send(f"▶️ **Now playing:** {title} by {uploader}", ephemeral=True)
                     except Exception as e:
-                        await interaction.followup.send(f"❌ Error playing song: {str(e)}", ephemeral=True)
+                        error_msg = f"❌ Error playing song: {type(e).__name__}: {str(e)}"
+                        print(f"Music search playback error: {error_msg}")
+                        import traceback
+                        traceback.print_exc()
+                        await interaction.followup.send(error_msg, ephemeral=True)
                 else:
                     # Add to queue
                     self.music_player.queues[interaction.guild.id].append(song_info)
@@ -304,7 +308,11 @@ class FastMusicSearchModal(Modal, title='🎵 Add Music'):
                 else:
                     await interaction.followup.send(f"❌ Couldn't find audio for: {title}", ephemeral=True)
             except Exception as e:
-                await interaction.followup.send(f"❌ Error playing song: {str(e)}", ephemeral=True)
+                error_msg = f"❌ Error playing song: {type(e).__name__}: {str(e)}"
+                print(f"Music modal playback error: {error_msg}")
+                import traceback
+                traceback.print_exc()
+                await interaction.followup.send(error_msg, ephemeral=True)
         else:
             # Add to queue
             self.music_player.queues[interaction.guild.id].append(song_info)

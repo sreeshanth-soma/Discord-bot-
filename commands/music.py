@@ -11,11 +11,20 @@ music_player = None
 def initialize_music_player(bot):
     """Initialize the global music player"""
     global music_player
+    print("🎵 Initializing music player...")
     music_player = MusicPlayer(bot)
+    print(f"✅ Music player initialized: {music_player}")
     return music_player
 
 async def handle_music_command(message):
     """Handle !music and !player commands"""
+    global music_player
+    
+    # Check if music player is initialized
+    if music_player is None:
+        await message.channel.send("❌ Music player is not initialized yet. Please wait a moment and try again.")
+        return True
+        
     if not message.author.voice:
         await message.channel.send("❌ You need to be in a voice channel to use the music player!")
         return True
@@ -107,7 +116,11 @@ async def handle_search_command(message):
                     embed = await view.create_now_playing_embed(song_info)
                     await interaction.response.edit_message(embed=embed, view=view)
                 except Exception as e:
-                    await interaction.response.send_message(f"❌ Error playing song: {str(e)}", ephemeral=True)
+                    error_msg = f"❌ Error playing song: {type(e).__name__}: {str(e)}"
+                    print(f"Music playback error: {error_msg}")
+                    import traceback
+                    traceback.print_exc()
+                    await interaction.response.send_message(error_msg, ephemeral=True)
             else:
                 music_player.queues[interaction.guild.id].append(song_info)
                 embed = discord.Embed(title="📋 Added to Queue", color=0x3498db)
@@ -387,7 +400,16 @@ async def handle_music_control_commands(message):
 
 async def process_music_commands(message):
     """Process all music-related commands"""
+    global music_player
+    
     content = message.content.lower()
+    
+    # Check if music player is initialized for any music command
+    if music_player is None:
+        if any(content.startswith(cmd) for cmd in ['!music', '!play', '!pause', '!resume', '!skip', '!stop', '!queue', '!volume', '!loop', '!leave', '!nowplaying']):
+            await message.channel.send("❌ Music player is not initialized yet. Please wait for the bot to fully start up.")
+            return True
+        return False
     
     # Main music commands
     if content.startswith('!music') or content.startswith('!player'):

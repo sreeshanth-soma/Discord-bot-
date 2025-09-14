@@ -4,7 +4,9 @@ from datetime import datetime, timedelta
 
 def init_database():
     """Initialize the database with all required tables"""
-    conn = sqlite3.connect('bot_data.db')
+    import os
+    db_path = os.getenv('DATABASE_PATH', 'bot_data.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
     # Warnings table

@@ -1,11 +1,18 @@
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 import asyncio
 import time
 from collections import defaultdict, deque
 
 # Import configuration
 from config.settings import TOKEN
+
+# Railway database setup
+try:
+    from railway_db_setup import setup_railway_database
+    setup_railway_database()
+except ImportError:
+    pass  # Local development
 
 # Import utilities
 from utils.database import init_database, log_server_event
@@ -89,6 +96,13 @@ class MyClient(discord.Client):
     async def on_message(self, message):
         if message.author == self.user:
             return
+        
+        # Update activity for auto-stop functionality
+        try:
+            import requests
+            requests.post('http://localhost:8080/activity', timeout=1)
+        except:
+            pass  # Health server might not be running
         
         # Auto-moderation checks
         if not message.author.bot and message.guild:
