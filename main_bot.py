@@ -34,19 +34,23 @@ def is_spam(user_id, message_content):
     now = time.time()
     user_messages = spam_tracker[user_id]
     
+    # Skip spam detection for bot commands
+    if message_content.startswith(('!', '/', '.')):
+        return False
+    
     # Add current message
     user_messages.append((now, message_content))
     
-    # Check for spam patterns
-    if len(user_messages) >= 4:
-        # Check if 4+ messages in 10 seconds
-        recent_messages = [msg for msg in user_messages if now - msg[0] <= 10]
-        if len(recent_messages) >= 4:
+    # Check for spam patterns (more lenient)
+    if len(user_messages) >= 6:  # Increased from 4 to 6
+        # Check if 6+ messages in 8 seconds (more lenient)
+        recent_messages = [msg for msg in user_messages if now - msg[0] <= 8]
+        if len(recent_messages) >= 6:
             return True
         
-        # Check for repeated content
+        # Check for repeated content (more lenient)
         contents = [msg[1] for msg in user_messages]
-        if len(set(contents)) == 1 and len(contents) >= 3:  # Same message 3+ times
+        if len(set(contents)) == 1 and len(contents) >= 5:  # Same message 5+ times (was 3)
             return True
     
     return False
@@ -104,7 +108,56 @@ class MyClient(discord.Client):
         except:
             pass  # Health server might not be running
         
-        # Auto-moderation checks
+        # Process commands FIRST (before spam detection)
+        if message.guild:
+            # Process search commands
+            if await handle_search_command(message, is_private=False):
+                return
+            
+            # Process private commands
+            if message.content.startswith('?'):
+                # Handle private search commands
+                if await handle_private_search_command(message):
+                    return
+                
+                # Handle other private commands
+                private_command = message.content[1:].strip()
+                if await process_fun_command_private(message, private_command):
+                    return
+                else:
+                    # Default private response for unknown commands
+                    await message.author.send('This is a private message response to your question.')
+                return
+            
+            # Process fun commands
+            if await process_fun_command(message, is_private=False):
+                return
+            
+            # Process entertainment commands
+            if await handle_entertainment_commands(message):
+                return
+            
+            # Process utility commands
+            if await process_utility_commands(message, self):
+                return
+            
+            # Process moderation commands
+            if await process_moderation_commands(message):
+                return
+            
+            # Process music commands
+            if await process_music_commands(message):
+                return
+            
+            # Help commands
+            if message.content.startswith('/help') or message.content.startswith('!help'):
+                await send_help_message(message)
+                return
+            elif message.content.startswith('/ahelp') or message.content.startswith('!ahelp'):
+                await send_admin_help_message(message)
+                return
+        
+        # Auto-moderation checks (AFTER command processing)
         if not message.author.bot and message.guild:
             # Check for spam
             if is_spam(message.author.id, message.content):
@@ -153,53 +206,6 @@ class MyClient(discord.Client):
                     pass
                 except discord.errors.Forbidden:
                     pass
-        
-        # Process search commands
-        if await handle_search_command(message, is_private=False):
-            return
-        
-        # Process private commands
-        if message.content.startswith('?'):
-            # Handle private search commands
-            if await handle_private_search_command(message):
-                return
-            
-            # Handle other private commands
-            private_command = message.content[1:].strip()
-            if await process_fun_command_private(message, private_command):
-                return
-            else:
-                # Default private response for unknown commands
-                await message.author.send('This is a private message response to your question.')
-            return
-        
-        # Process fun commands
-        if await process_fun_command(message, is_private=False):
-            return
-        
-        # Process entertainment commands
-        if await handle_entertainment_commands(message):
-            return
-        
-        # Process utility commands
-        if await process_utility_commands(message, self):
-            return
-        
-        # Process moderation commands
-        if await process_moderation_commands(message):
-            return
-        
-        # Process music commands
-        if await process_music_commands(message):
-            return
-        
-        # Help commands
-        if message.content.startswith('/help') or message.content.startswith('!help'):
-            await send_help_message(message)
-            return
-        elif message.content.startswith('/ahelp') or message.content.startswith('!ahelp'):
-            await send_admin_help_message(message)
-            return
 
 async def process_fun_command_private(message, private_command):
     """Process private fun commands"""
