@@ -1,12 +1,65 @@
 import discord
 from discord.ui import View, Button, Modal, TextInput
 from discord import ButtonStyle
+from discord.errors import HTTPException
 import asyncio
+import time
 from utils.music_sources import MusicPlayer, YTDLSource
 from ui.music_views import SpotifyMusicCard, FastMusicSearchModal, MusicPlayerView
 
 # Global music player instance
 music_player = None
+
+# Rate limiting cooldown tracking
+_last_error_message = {}
+_error_cooldown = 2.0  # seconds
+
+async def safe_send_message(channel_or_interaction, message, ephemeral=True, max_retries=3):
+    """Safely send a message with rate limit handling and cooldown"""
+    global _last_error_message
+    
+    # Check cooldown for error messages
+    current_time = time.time()
+    
+    # Get user ID from channel or interaction
+    if hasattr(channel_or_interaction, 'user'):
+        user_id = channel_or_interaction.user.id
+    elif hasattr(channel_or_interaction, 'author'):
+        user_id = channel_or_interaction.author.id
+    else:
+        user_id = 0  # Unknown user
+    
+    if message.startswith("❌") and user_id in _last_error_message:
+        if current_time - _last_error_message[user_id] < _error_cooldown:
+            print(f"Rate limiting error message for user {user_id}")
+            return False
+    
+    # Update cooldown for error messages
+    if message.startswith("❌"):
+        _last_error_message[user_id] = current_time
+    
+    # Try to send with retries
+    for attempt in range(max_retries):
+        try:
+            if hasattr(channel_or_interaction, 'send'):  # Channel
+                await channel_or_interaction.send(message)
+            else:  # Interaction
+                await channel_or_interaction.response.send_message(message, ephemeral=ephemeral)
+            return True
+        except HTTPException as e:
+            if e.status == 429:  # Rate limited
+                retry_after = e.retry_after if hasattr(e, 'retry_after') else 1.0
+                print(f"Rate limited, waiting {retry_after}s (attempt {attempt + 1}/{max_retries})")
+                await asyncio.sleep(retry_after)
+            else:
+                print(f"HTTP error {e.status}: {e}")
+                break
+        except Exception as e:
+            print(f"Error sending message: {e}")
+            break
+    
+    print(f"Failed to send message after {max_retries} attempts")
+    return False
 
 def initialize_music_player(bot):
     """Initialize the global music player"""
@@ -22,11 +75,11 @@ async def handle_music_command(message):
     
     # Check if music player is initialized
     if music_player is None:
-        await message.channel.send("❌ Music player is not initialized yet. Please wait a moment and try again.")
+        await safe_send_message(message.channel, "❌ Music player is not initialized yet. Please wait a moment and try again.")
         return True
-        
+
     if not message.author.voice:
-        await message.channel.send("❌ You need to be in a voice channel to use the music player!")
+        await safe_send_message(message.channel, "❌ You need to be in a voice channel to use the music player!")
         return True
     
     # Create the Spotify-like music card
@@ -42,7 +95,7 @@ async def handle_search_command(message):
     """Handle !search command"""
     parts = message.content.split(' ', 1)
     if len(parts) < 2:
-        await message.channel.send("❌ Usage: `!search <song name>`")
+        await safe_send_message(message.channel, "❌ Usage: `!search <song name>`")
         return True
     
     query = parts[1]
@@ -59,7 +112,7 @@ async def handle_search_command(message):
     
     # Since we can't send modal directly, we'll simulate the search
     if not message.author.voice:
-        await message.channel.send("❌ You need to be in a voice channel!")
+        await safe_send_message(message.channel, "❌ You need to be in a voice channel!")
         return True
     
     # Search for the song
@@ -92,7 +145,7 @@ async def handle_search_command(message):
         async def play_button(self, interaction: discord.Interaction, button: Button):
             voice_client = await music_player.join_voice_channel(ctx)
             if not voice_client:
-                await interaction.response.send_message("❌ You need to be in a voice channel!", ephemeral=True)
+                await safe_send_message(interaction, "❌ You need to be in a voice channel!", ephemeral=True)
                 return
             
             song_info = {
@@ -137,7 +190,7 @@ async def handle_play_command(message):
     try:
         parts = message.content.split(' ', 1)
         if len(parts) < 2:
-            await message.channel.send("❌ Usage: `!play <song name or YouTube URL>`")
+            await safe_send_message(message.channel, "❌ Usage: `!play <song name or YouTube URL>`")
             return True
         
         query = parts[1]
@@ -232,7 +285,7 @@ async def handle_play_command(message):
             await loading_msg.edit(content="", embed=embed)
             
     except Exception as e:
-        await message.channel.send(f"❌ Error with play command: {str(e)}")
+        await safe_send_message(message.channel, f"❌ Error with play command: {str(e)}")
     return True
 
 async def handle_music_control_commands(message):
@@ -247,9 +300,9 @@ async def handle_music_control_commands(message):
                 voice_client.pause()
                 await message.channel.send("⏸️ Music paused.")
             else:
-                await message.channel.send("❌ Nothing is currently playing.")
+                await safe_send_message(message.channel, "❌ Nothing is currently playing.")
         else:
-            await message.channel.send("❌ Bot is not connected to a voice channel.")
+            await safe_send_message(message.channel, "❌ Bot is not connected to a voice channel.")
         return True
     
     # Resume command
@@ -260,9 +313,9 @@ async def handle_music_control_commands(message):
                 voice_client.resume()
                 await message.channel.send("▶️ Music resumed.")
             else:
-                await message.channel.send("❌ Music is not paused.")
+                await safe_send_message(message.channel, "❌ Music is not paused.")
         else:
-            await message.channel.send("❌ Bot is not connected to a voice channel.")
+            await safe_send_message(message.channel, "❌ Bot is not connected to a voice channel.")
         return True
     
     # Stop command
@@ -275,7 +328,7 @@ async def handle_music_control_commands(message):
                 del music_player.current_songs[message.guild.id]
             await message.channel.send("⏹️ Music stopped and queue cleared.")
         else:
-            await message.channel.send("❌ Bot is not connected to a voice channel.")
+            await safe_send_message(message.channel, "❌ Bot is not connected to a voice channel.")
         return True
     
     # Skip command
@@ -286,9 +339,9 @@ async def handle_music_control_commands(message):
                 voice_client.stop()  # This will trigger play_next
                 await message.channel.send("⏭️ Skipped current song.")
             else:
-                await message.channel.send("❌ Nothing is currently playing.")
+                await safe_send_message(message.channel, "❌ Nothing is currently playing.")
         else:
-            await message.channel.send("❌ Bot is not connected to a voice channel.")
+            await safe_send_message(message.channel, "❌ Bot is not connected to a voice channel.")
         return True
     
     # Queue command
@@ -336,7 +389,7 @@ async def handle_music_control_commands(message):
             
             volume = int(parts[1])
             if volume < 0 or volume > 100:
-                await message.channel.send("❌ Volume must be between 0 and 100.")
+                await safe_send_message(message.channel, "❌ Volume must be between 0 and 100.")
                 return True
             
             music_player.volumes[message.guild.id] = volume / 100
@@ -349,9 +402,9 @@ async def handle_music_control_commands(message):
             
             await message.channel.send(f"🔊 Volume set to {volume}%")
         except ValueError:
-            await message.channel.send("❌ Please provide a valid number (0-100).")
+            await safe_send_message(message.channel, "❌ Please provide a valid number (0-100).")
         except Exception as e:
-            await message.channel.send(f"❌ Error setting volume: {str(e)}")
+            await safe_send_message(message.channel, f"❌ Error setting volume: {str(e)}")
         return True
     
     # Loop command
@@ -372,7 +425,7 @@ async def handle_music_control_commands(message):
                 del music_player.current_songs[message.guild.id]
             await message.channel.send("👋 Left the voice channel.")
         else:
-            await message.channel.send("❌ Bot is not connected to a voice channel.")
+            await safe_send_message(message.channel, "❌ Bot is not connected to a voice channel.")
         return True
     
     # Now Playing command
@@ -393,7 +446,7 @@ async def handle_music_control_commands(message):
             
             await message.channel.send(embed=embed)
         else:
-            await message.channel.send("❌ Nothing is currently playing.")
+            await safe_send_message(message.channel, "❌ Nothing is currently playing.")
         return True
     
     return False
@@ -407,7 +460,7 @@ async def process_music_commands(message):
     # Check if music player is initialized for any music command
     if music_player is None:
         if any(content.startswith(cmd) for cmd in ['!music', '!play', '!pause', '!resume', '!skip', '!stop', '!queue', '!volume', '!loop', '!leave', '!nowplaying']):
-            await message.channel.send("❌ Music player is not initialized yet. Please wait for the bot to fully start up.")
+            await safe_send_message(message.channel, "❌ Music player is not initialized yet. Please wait for the bot to fully start up.")
             return True
         return False
     

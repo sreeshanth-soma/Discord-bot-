@@ -1,8 +1,51 @@
 import discord
 from discord.ui import View, Button, Modal, TextInput
 from discord import ButtonStyle
+from discord.errors import HTTPException
 import asyncio
+import time
 from utils.music_sources import YTDLSource, SpotifyMusicSource
+
+# Rate limiting cooldown tracking
+_last_error_message = {}
+_error_cooldown = 2.0  # seconds
+
+async def safe_send_message(interaction, message, ephemeral=True, max_retries=3):
+    """Safely send a message with rate limit handling and cooldown"""
+    global _last_error_message
+    
+    # Check cooldown for error messages
+    current_time = time.time()
+    user_id = interaction.user.id
+    
+    if message.startswith("❌") and user_id in _last_error_message:
+        if current_time - _last_error_message[user_id] < _error_cooldown:
+            print(f"Rate limiting error message for user {user_id}")
+            return False
+    
+    # Update cooldown for error messages
+    if message.startswith("❌"):
+        _last_error_message[user_id] = current_time
+    
+    # Try to send with retries
+    for attempt in range(max_retries):
+        try:
+            await interaction.followup.send(message, ephemeral=ephemeral)
+            return True
+        except HTTPException as e:
+            if e.status == 429:  # Rate limited
+                retry_after = e.retry_after if hasattr(e, 'retry_after') else 1.0
+                print(f"Rate limited, waiting {retry_after}s (attempt {attempt + 1}/{max_retries})")
+                await asyncio.sleep(retry_after)
+            else:
+                print(f"HTTP error {e.status}: {e}")
+                break
+        except Exception as e:
+            print(f"Error sending message: {e}")
+            break
+    
+    print(f"Failed to send message after {max_retries} attempts")
+    return False
 
 class SpotifyMusicCard(View):
     def __init__(self, music_player, guild_id):
@@ -209,9 +252,9 @@ class FastMusicSearchModal(Modal, title='🎵 Add Music'):
         voice_client = await self.music_player.join_voice_channel(self.ctx)
         if not voice_client:
             if self.ctx.author.voice is None:
-                await interaction.followup.send("❌ You need to join a voice channel first!", ephemeral=True)
+                await safe_send_message(interaction, "❌ You need to join a voice channel first!", ephemeral=True)
             else:
-                await interaction.followup.send("❌ Failed to connect to your voice channel!", ephemeral=True)
+                await safe_send_message(interaction, "❌ Failed to connect to your voice channel!", ephemeral=True)
             return
 
         # Check if it's a direct YouTube URL
@@ -267,13 +310,13 @@ class FastMusicSearchModal(Modal, title='🎵 Add Music'):
                     await self.music_card.update_card()
                     
             except Exception as e:
-                await interaction.followup.send(f"❌ Error loading YouTube URL: {str(e)}", ephemeral=True)
+                await safe_send_message(interaction, f"❌ Error loading YouTube URL: {str(e)}", ephemeral=True)
             return
 
         # Fast Spotify search - always use first result
         url, title, duration, thumbnail, artist, popularity = await SpotifyMusicSource.search_spotify(query)
         if not url:
-            await interaction.followup.send("❌ No results found on Spotify.", ephemeral=True)
+            await safe_send_message(interaction, "❌ No results found on Spotify.", ephemeral=True)
             return
 
         # Format duration
@@ -304,22 +347,22 @@ class FastMusicSearchModal(Modal, title='🎵 Add Music'):
                     voice_client.play(player, after=lambda e: asyncio.run_coroutine_threadsafe(self.music_player.play_next(interaction.guild.id), self.music_player.bot.loop))
                     
                     await self.music_card.update_card()
-                    await interaction.followup.send(f"▶️ **Now playing:** {title} by {artist}", ephemeral=True)
+                    await safe_send_message(interaction, f"▶️ **Now playing:** {title} by {artist}", ephemeral=True)
                 else:
-                    await interaction.followup.send(f"❌ Couldn't find audio for: {title}", ephemeral=True)
+                    await safe_send_message(interaction, f"❌ Couldn't find audio for: {title}", ephemeral=True)
             except Exception as e:
                 error_msg = f"❌ Error playing song: {type(e).__name__}: {str(e)}"
                 print(f"Music modal playback error: {error_msg}")
                 import traceback
                 traceback.print_exc()
-                await interaction.followup.send(error_msg, ephemeral=True)
+                await safe_send_message(interaction, error_msg, ephemeral=True)
         else:
             # Add to queue
             self.music_player.queues[interaction.guild.id].append(song_info)
             position = len(self.music_player.queues[interaction.guild.id])
             
             # Only show queue addition message
-            await interaction.followup.send(f"📋 **Added to queue #{position}:** {title} by {artist}", ephemeral=True)
+            await safe_send_message(interaction, f"📋 **Added to queue #{position}:** {title} by {artist}", ephemeral=True)
             
             # Update the music card to show new queue count
             await self.music_card.update_card()
