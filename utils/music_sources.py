@@ -22,11 +22,32 @@ if SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET:
         spotify = None
 
 def _prepare_cookiefile() -> str | None:
-    """Create a temporary cookies file from env if provided. Returns path or None."""
-    cookies_raw = os.getenv('YT_DLP_COOKIES')
-    cookies_b64 = os.getenv('YT_DLP_COOKIES_B64')
-    cookiefile = None
+    """Resolve a cookies file for yt-dlp.
+
+    Priority:
+      1) YT_DLP_COOKIES_PATH env (existing file)
+      2) utils/cookies.txt in repo (if present)
+      3) YT_DLP_COOKIES_B64 (base64 content)
+      4) YT_DLP_COOKIES (raw Netscape content)
+    Returns path or None.
+    """
     try:
+        # 1) Explicit path via env
+        path_env = os.getenv('YT_DLP_COOKIES_PATH')
+        if path_env and os.path.isfile(path_env):
+            return path_env
+
+        # 2) Project file fallback
+        for candidate in (
+            'utils/cookies.txt',           # local dev
+            '/app/utils/cookies.txt',      # Railway container path
+        ):
+            if os.path.isfile(candidate):
+                return candidate
+
+        # 3/4) Inline content via env → write to /tmp
+        cookies_raw = os.getenv('YT_DLP_COOKIES')
+        cookies_b64 = os.getenv('YT_DLP_COOKIES_B64')
         if cookies_b64 and not cookies_raw:
             try:
                 cookies_raw = base64.b64decode(cookies_b64).decode('utf-8', errors='ignore')
@@ -36,24 +57,22 @@ def _prepare_cookiefile() -> str | None:
             cookiefile = '/tmp/youtube_cookies.txt'
             with open(cookiefile, 'w', encoding='utf-8') as f:
                 f.write(cookies_raw)
+            return cookiefile
     except Exception as e:
         print(f"Error preparing cookies file: {e}")
-        cookiefile = None
-    return cookiefile
+    return None
 
 
 def _build_ytdl(opts: dict | None = None) -> yt_dlp.YoutubeDL:
     """Build a YoutubeDL instance with hardened options (android client, cookies)."""
     final_opts = dict(YTDL_FORMAT_OPTIONS)
-    # Prefer bestaudio, bypass region, reduce chances of CAPTCHA
     final_opts.update({
+        'format': 'bestaudio[ext=m4a]/bestaudio/best',  # Prefer M4A, then any best audio
         'noprogress': True,
+        'quiet': True,
         'geo_bypass': True,
         'extractor_args': {
-            # Use android client which often avoids bot-checks
-            'youtube': {
-                'player_client': ['android'],
-            }
+            'youtube': {'player_client': ['android']},
         },
     })
     cookiefile = _prepare_cookiefile()
@@ -62,6 +81,7 @@ def _build_ytdl(opts: dict | None = None) -> yt_dlp.YoutubeDL:
     if opts:
         final_opts.update(opts)
     return yt_dlp.YoutubeDL(final_opts)
+
 
 ytdl = _build_ytdl()
 
@@ -81,11 +101,28 @@ class YTDLSource(discord.PCMVolumeTransformer):
             def _extract():
                 try:
                     return ytdl.extract_info(url, download=not stream)
-                except Exception as e:
-                    # Retry once with a fresh YTDL (in case env/cookies changed)
-                    print(f"yt-dlp extract failed, retrying with fresh client: {e}")
-                    fresh = _build_ytdl()
-                    return fresh.extract_info(url, download=not stream)
+                except Exception as e1:
+                    err = str(e1)
+                    print(f"yt-dlp extract failed, retrying (fresh client): {err}")
+                    # Retry 1: fresh client with same options
+                    try:
+                        fresh = _build_ytdl()
+                        return fresh.extract_info(url, download=not stream)
+                    except Exception as e2:
+                        err2 = str(e2)
+                        # Retry 2: adjust format to a more permissive selector
+                        try:
+                            print(f"yt-dlp second attempt failed, retry with permissive format: {err2}")
+                            permissive = _build_ytdl({
+                                'format': 'bestaudio[ext=webm]/bestaudio/best'
+                            })
+                            return permissive.extract_info(url, download=not stream)
+                        except Exception as e3:
+                            # Final attempt: remove format constraint entirely
+                            print(f"yt-dlp third attempt failed, retry without format: {e3}")
+                            nofmt = _build_ytdl({})
+                            # remove any inherited format by rebuilding without override
+                            return nofmt.extract_info(url, download=not stream)
 
             data = await loop.run_in_executor(None, _extract)
             
@@ -160,7 +197,6 @@ class YTDLSource(discord.PCMVolumeTransformer):
                     'default_search': 'ytsearch1:',
                     'extract_flat': False,
                     'skip_download': True,
-                    'format': 'bestaudio/best',
                 }
                 ydl = _build_ytdl(search_opts)
                 search_results = ydl.extract_info(f"ytsearch1:{search_query}", download=False)
