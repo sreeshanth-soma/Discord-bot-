@@ -1,6 +1,8 @@
 import discord
 import asyncio
 import yt_dlp
+import os
+import base64
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 from config.settings import YTDL_FORMAT_OPTIONS, FFMPEG_OPTIONS, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
@@ -19,7 +21,49 @@ if SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET:
         print(f"Spotify API setup failed: {e}")
         spotify = None
 
-ytdl = yt_dlp.YoutubeDL(YTDL_FORMAT_OPTIONS)
+def _prepare_cookiefile() -> str | None:
+    """Create a temporary cookies file from env if provided. Returns path or None."""
+    cookies_raw = os.getenv('YT_DLP_COOKIES')
+    cookies_b64 = os.getenv('YT_DLP_COOKIES_B64')
+    cookiefile = None
+    try:
+        if cookies_b64 and not cookies_raw:
+            try:
+                cookies_raw = base64.b64decode(cookies_b64).decode('utf-8', errors='ignore')
+            except Exception as e:
+                print(f"Failed to decode YT_DLP_COOKIES_B64: {e}")
+        if cookies_raw:
+            cookiefile = '/tmp/youtube_cookies.txt'
+            with open(cookiefile, 'w', encoding='utf-8') as f:
+                f.write(cookies_raw)
+    except Exception as e:
+        print(f"Error preparing cookies file: {e}")
+        cookiefile = None
+    return cookiefile
+
+
+def _build_ytdl(opts: dict | None = None) -> yt_dlp.YoutubeDL:
+    """Build a YoutubeDL instance with hardened options (android client, cookies)."""
+    final_opts = dict(YTDL_FORMAT_OPTIONS)
+    # Prefer bestaudio, bypass region, reduce chances of CAPTCHA
+    final_opts.update({
+        'noprogress': True,
+        'geo_bypass': True,
+        'extractor_args': {
+            # Use android client which often avoids bot-checks
+            'youtube': {
+                'player_client': ['android'],
+            }
+        },
+    })
+    cookiefile = _prepare_cookiefile()
+    if cookiefile:
+        final_opts['cookiefile'] = cookiefile
+    if opts:
+        final_opts.update(opts)
+    return yt_dlp.YoutubeDL(final_opts)
+
+ytdl = _build_ytdl()
 
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
@@ -34,7 +78,16 @@ class YTDLSource(discord.PCMVolumeTransformer):
     async def from_url(cls, url, *, loop=None, stream=False):
         loop = loop or asyncio.get_event_loop()
         try:
-            data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
+            def _extract():
+                try:
+                    return ytdl.extract_info(url, download=not stream)
+                except Exception as e:
+                    # Retry once with a fresh YTDL (in case env/cookies changed)
+                    print(f"yt-dlp extract failed, retrying with fresh client: {e}")
+                    fresh = _build_ytdl()
+                    return fresh.extract_info(url, download=not stream)
+
+            data = await loop.run_in_executor(None, _extract)
             
             if 'entries' in data:
                 data = data['entries'][0]
@@ -73,8 +126,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
                     'extract_flat': False,
                     'skip_download': True,
                 }
-                
-                with yt_dlp.YoutubeDL(search_opts) as ydl:
+                ydl = _build_ytdl(search_opts)
                     search_results = ydl.extract_info(f"ytsearch1:{search_query}", download=False)
                     
                 if search_results and 'entries' in search_results and search_results['entries']:
@@ -110,8 +162,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
                     'skip_download': True,
                     'format': 'bestaudio/best',
                 }
-                
-                with yt_dlp.YoutubeDL(search_opts) as ydl:
+                ydl = _build_ytdl(search_opts)
                     search_results = ydl.extract_info(f"ytsearch1:{search_query}", download=False)
                     
                 if search_results and 'entries' in search_results and search_results['entries']:
