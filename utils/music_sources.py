@@ -127,7 +127,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
                     'skip_download': True,
                 }
                 ydl = _build_ytdl(search_opts)
-                    search_results = ydl.extract_info(f"ytsearch1:{search_query}", download=False)
+                search_results = ydl.extract_info(f"ytsearch1:{search_query}", download=False)
                     
                 if search_results and 'entries' in search_results and search_results['entries']:
                     video = search_results['entries'][0]
